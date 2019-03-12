@@ -14,6 +14,7 @@ import javax.swing.SwingUtilities;
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Vector3d;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.media.j3d.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -109,6 +110,7 @@ public class Simulator implements Runnable {
     private static int qgcPeerPort = DEFAULT_QGC_PEER_PORT;
     private static String serialPath = DEFAULT_SERIAL_PATH;
     private static int serialBaudRate = DEFAULT_SERIAL_BAUD_RATE;
+    private static boolean isHeadless = false;
 
     private static HashSet<Integer> monitorMessageIds = new HashSet<Integer>();
     private static boolean monitorMessage = false;
@@ -132,6 +134,8 @@ public class Simulator implements Runnable {
     private int checkFactor = 2;
     private int slowDownCounter = 0;
     public volatile boolean shutdown = false;
+    
+    private BranchGroup tmp_bGrp;
 
     public Simulator() throws IOException, InterruptedException {
 
@@ -167,16 +171,23 @@ public class Simulator implements Runnable {
         world.addObject(simpleEnvironment);
 
         // Create GUI
-        System.out.println("Starting GUI...");  // this is the longest part of startup so let user know
-        visualizer = new Visualizer3D(world);
-        visualizer.setSimulator(this);
-        visualizer.setAAEnabled(GUI_ENABLE_AA);
+        if (isHeadless) {
+            System.out.println("Running in headless mode");
+        }
+        if (!isHeadless) {
+            System.out.println("Starting GUI...");  // this is the longest part of startup so let user know
+            visualizer = new Visualizer3D(world);
+            visualizer.setSimulator(this);
+            visualizer.setAAEnabled(GUI_ENABLE_AA);
+        }
         if (GUI_START_MAXIMIZED) {
             visualizer.setExtendedState(JFrame.MAXIMIZED_BOTH);
         }
 
         // add GUI output stream handler for displaying messages
-        outputHandler.addOutputStream(visualizer.getOutputStream());
+        if (!isHeadless) {
+            outputHandler.addOutputStream(visualizer.getOutputStream());
+        }
 
         MAVLinkSchema schema = null;
         try {
@@ -279,21 +290,24 @@ public class Simulator implements Runnable {
         if (USE_GIMBAL) {
             gimbal = buildGimbal();
             world.addObject(gimbal);
-            visualizer.setGimbalViewObject(gimbal);
+            if(!isHeadless) {
+                visualizer.setGimbalViewObject(gimbal);
+            }
         }
-
-        // Create simulation report updater
-        world.addObject(new ReportUpdater(world, visualizer));
-
-        visualizer.addWorldModels();
-        visualizer.setHilSystem(hilSystem);
-        visualizer.setVehicleViewObject(vehicle);
-
-        // set default view and zoom mode
-        visualizer.setViewType(GUI_START_VIEW);
-        visualizer.setZoomMode(GUI_START_ZOOM);
-        visualizer.toggleReportPanel(GUI_SHOW_REPORT_PANEL);
-
+        
+        if(!isHeadless) {
+            // Create simulation report updater
+            world.addObject(new ReportUpdater(world, visualizer));
+    
+            visualizer.addWorldModels();
+            visualizer.setHilSystem(hilSystem);
+            visualizer.setVehicleViewObject(vehicle);
+    
+            // set default view and zoom mode
+            visualizer.setViewType(GUI_START_VIEW);
+            visualizer.setZoomMode(GUI_START_ZOOM);
+            visualizer.toggleReportPanel(GUI_SHOW_REPORT_PANEL);
+        }
         // Open ports
         try {
             autopilotMavLinkPort.open();
@@ -454,8 +468,28 @@ public class Simulator implements Runnable {
             now = getSimMillis();
         }
 
+        
         try {
             world.update(now, needsToPause);
+            
+            if(isHeadless) {
+                
+                try {
+                // Update branch groups of all kinematic objects
+                    for (WorldObject object : world.getObjects()) {
+                        if (object instanceof KinematicObject) {
+                            tmp_bGrp = ((KinematicObject) object).getBranchGroup();
+                            if (tmp_bGrp != null) {
+                                Vector3d pos = ((KinematicObject) object).getPosition();
+                                System.out.print("\r" + pos);
+                            }
+                        }
+                    }
+                
+                } catch (BadTransformException e) {
+                    e.printStackTrace();
+                }
+            }
         } catch (Exception e) {
             System.err.println("Exception in Simulator.world.update() : ");
             e.printStackTrace();
@@ -802,6 +836,9 @@ public class Simulator implements Runnable {
                 LOCKSTEP_ENABLED = true;
             } else if (arg.equals("-debug")) {
                 DEBUG_MODE = true;
+            } else if (arg.equals("-headless")) {
+                isHeadless = true;
+                //System.setProperty("java.awt.headless", "true"); 
             } else {
                 System.err.println("Unknown flag: " + arg + ", usage: " + USAGE_STRING);
                 return;

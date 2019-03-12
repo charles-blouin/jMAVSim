@@ -25,3 +25,12 @@ Copy gluegen-rt.jar and jogl-all.jar in ~/j3d/jogl-v2.3.1. Change the build.xml:
   <property name="jogl.lib"          location="../jogl-v2.3.1/jogl-all.jar"/>
   <property name="gluegen.lib"       location="../jogl-v2.3.1/gluegen-rt.jar"/>
 cd j3d/j3d-core
+ant
+
+Then, copy ~/j3d/j3d-core/build/jars/j3dcore.jar to src/Firmware/Tools/jmavsim/lib
+
+To run jMavsim,
+
+cd ~/src/Firmware/Tools/jMavSim
+ant
+java -Djava.awt.headless=true -Dj3d.rend=noop -cp lib/*:out/production/jmavsim.jar  me.drton.jmavsim.Simulator -headless
