@@ -481,7 +481,7 @@ public class Simulator implements Runnable {
                             tmp_bGrp = ((KinematicObject) object).getBranchGroup();
                             if (tmp_bGrp != null) {
                                 Vector3d pos = ((KinematicObject) object).getPosition();
-                                System.out.print("\r" + pos);
+                                System.out.print("\r" + pos.x);
                             }
                         }
                     }
